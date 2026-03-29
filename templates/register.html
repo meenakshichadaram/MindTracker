@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="auth-container">
+    <div class="card">
+        <h2>Create your account 🧠</h2>
+        <div id="alert"></div>
+        <label>Username</label>
+        <input type="text" id="username" placeholder="Choose a username">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="Enter your email">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Choose a password">
+        <button class="btn" style="width:100%" onclick="register()">Create Account</button>
+        <p>Already have an account? <a href="/login/">Login here</a></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function register() {
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const response = await fetch('/api/users/register/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            document.getElementById('alert').innerHTML =
+                '<div class="alert alert-success">Account created! Redirecting to login...</div>';
+            setTimeout(() => window.location.href = '/login/', 1500);
+        } else {
+            document.getElementById('alert').innerHTML =
+                `<div class="alert alert-error">${JSON.stringify(data)}</div>`;
+        }
+    }
+</script>
+{% endblock %}

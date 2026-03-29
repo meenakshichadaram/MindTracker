@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="max-width: 520px; margin: 0 auto;">
+
+    <!-- Quote popup (hidden by default) -->
+    <div id="quote-box" style="display:none; margin-bottom:20px;">
+        <div class="card" style="border: 1px solid #a78bfa; text-align:center; padding:32px;">
+            <div style="font-size:36px; margin-bottom:12px;" id="quote-emoji">💫</div>
+            <p id="quote-text" style="font-size:17px; color:#e0e0e0; font-weight:500; line-height:1.6;"></p>
+            <br>
+            <button class="btn" onclick="window.location.href='/dashboard/'">Go to Dashboard</button>
+        </div>
+    </div>
+
+    <!-- Log form -->
+    <div class="card" id="log-form">
+        <h2>How are you feeling? 💭</h2>
+        <br>
+        <div id="alert"></div>
+        <label>Mood Score (1-10)</label>
+        <input type="number" id="score" min="1" max="10" placeholder="1 = Terrible, 10 = Amazing">
+        <label>Note (optional)</label>
+        <textarea id="note" rows="3" placeholder="What's on your mind?"></textarea>
+        <label>Sleep Hours (optional)</label>
+        <input type="number" id="sleep" step="0.5" placeholder="e.g. 7.5">
+        <label>Energy Level (1-5, optional)</label>
+        <input type="number" id="energy" min="1" max="5" placeholder="e.g. 3">
+        <button class="btn" style="width:100%; margin-top:6px" onclick="logMood()">Log Mood</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = '/login/';
+    }
+
+    async function logMood() {
+        const score = parseInt(document.getElementById('score').value);
+        const note = document.getElementById('note').value;
+        const sleep = document.getElementById('sleep').value;
+        const energy = document.getElementById('energy').value;
+
+        if (!score || score < 1 || score > 10) {
+            document.getElementById('alert').innerHTML =
+                '<div class="alert alert-error">Please enter a score between 1 and 10!</div>';
+            return;
+        }
+
+        const data = { score, note };
+        if (sleep) data.sleep_hours = parseFloat(sleep);
+        if (energy) data.energy_level = parseInt(energy);
+
+        const response = await apiRequest('/api/moods/', 'POST', data);
+
+        if (response && response.id) {
+            // Show quote
+            const quote = response.quote;
+            let emoji = score <= 4 ? '💙' : score <= 7 ? '🌿' : '⭐';
+            document.getElementById('quote-emoji').textContent = emoji;
+            document.getElementById('quote-text').textContent = quote;
+            document.getElementById('log-form').style.display = 'none';
+            document.getElementById('quote-box').style.display = 'block';
+        } else {
+            document.getElementById('alert').innerHTML =
+                '<div class="alert alert-error">Something went wrong. Try again!</div>';
+        }
+    }
+</script>
+{% endblock %}

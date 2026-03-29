@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="stat-grid">
+    <div class="stat-box">
+        <h3 id="avg-mood">-</h3>
+        <p>30-Day Average</p>
+    </div>
+    <div class="stat-box">
+        <h3 id="current-streak">-</h3>
+        <p>Current Streak 🔥</p>
+    </div>
+    <div class="stat-box">
+        <h3 id="longest-streak">-</h3>
+        <p>Longest Streak</p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Mood Heatmap — This Year 🗓️</h2>
+    <div style="margin-bottom:12px; display:flex; align-items:center; gap:8px; font-size:12px; color:#6060a0;">
+        <span>Less</span>
+        <span style="width:14px;height:14px;border-radius:3px;background:#1a1a2e;border:1px solid #2a2a4a;display:inline-block;"></span>
+        <span style="width:14px;height:14px;border-radius:3px;background:#7f1d1d;display:inline-block;"></span>
+        <span style="width:14px;height:14px;border-radius:3px;background:#f87171;display:inline-block;"></span>
+        <span style="width:14px;height:14px;border-radius:3px;background:#fbbf24;display:inline-block;"></span>
+        <span style="width:14px;height:14px;border-radius:3px;background:#4ade80;display:inline-block;"></span>
+        <span style="width:14px;height:14px;border-radius:3px;background:#22c55e;display:inline-block;"></span>
+        <span>More</span>
+        <span style="margin-left:16px; color:#8080a0">Red = Low mood &nbsp;|&nbsp; Green = High mood</span>
+    </div>
+    <div id="heatmap" style="overflow-x:auto; padding-bottom:8px;"></div>
+    <div id="heatmap-tooltip" style="
+        display:none;
+        position:fixed;
+        background:#1a1a2e;
+        border:1px solid #a78bfa;
+        border-radius:8px;
+        padding:8px 14px;
+        font-size:13px;
+        color:#e0e0e0;
+        pointer-events:none;
+        z-index:999;
+    "></div>
+</div>
+
+<div class="card">
+    <h2>Daily Mood Chart — Last 30 Days</h2>
+    <div class="chart-container">
+        <canvas id="dailyChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Weekly Report</h2>
+    <div id="weekly-report">Loading...</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = '/login/';
+    }
+
+    function getMoodColor(score) {
+        if (!score) return '#1a1a2e';
+        if (score <= 2) return '#7f1d1d';
+        if (score <= 4) return '#f87171';
+        if (score <= 6) return '#fbbf24';
+        if (score <= 8) return '#4ade80';
+        return '#22c55e';
+    }
+
+    function buildHeatmap(data) {
+        const container = document.getElementById('heatmap');
+        const today = new Date();
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        const weeks = [];
+        let current = new Date(startOfYear);
+        current.setDate(current.getDate() - current.getDay());
+
+        while (current <= today) {
+            const week = [];
+            for (let d = 0; d < 7; d++) {
+                const dateStr = current.toISOString().split('T')[0];
+                const score = data[dateStr] || null;
+                week.push({ date: dateStr, score });
+                current.setDate(current.getDate() + 1);
+            }
+            weeks.push(week);
+        }
+
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        let html = `
+            <div style="display:flex; gap:3px; align-items:flex-start;">
+                <div style="display:flex; flex-direction:column; gap:3px; margin-right:4px; padding-top:20px;">
+                    <span style="font-size:10px;color:#555575;height:14px;line-height:14px;">Mon</span>
+                    <span style="font-size:10px;color:#555575;height:14px;line-height:14px;">Wed</span>
+                    <span style="font-size:10px;color:#555575;height:14px;line-height:14px;">Fri</span>
+                </div>
+                <div>
+                <div style="display:flex; gap:3px; margin-bottom:4px;">
+        `;
+
+        let lastMonth = -1;
+        weeks.forEach(week => {
+            const firstDay = new Date(week[0].date);
+            const month = firstDay.getMonth();
+            if (month !== lastMonth) {
+                html += `<div style="width:14px;font-size:10px;color:#6060a0;text-align:center;">${months[month]}</div>`;
+                lastMonth = month;
+            } else {
+                html += `<div style="width:14px;"></div>`;
+            }
+        });
+
+        html += `</div><div style="display:flex; gap:3px;">`;
+
+        weeks.forEach(week => {
+            html += `<div style="display:flex; flex-direction:column; gap:3px;">`;
+            week.forEach(day => {
+                const color = getMoodColor(day.score);
+                const border = day.score ? 'none' : '1px solid #2a2a4a';
+                html += `
+                    <div
+                        style="width:14px;height:14px;border-radius:3px;background:${color};border:${border};cursor:${day.score ? 'pointer' : 'default'};"
+                        onmouseenter="showTooltip(event, '${day.date}', ${day.score})"
+                        onmouseleave="hideTooltip()"
+                    ></div>
+                `;
+            });
+            html += `</div>`;
+        });
+
+        html += `</div></div></div>`;
+        container.innerHTML = html;
+    }
+
+    function showTooltip(event, date, score) {
+        if (!score) return;
+        const tooltip = document.getElementById('heatmap-tooltip');
+        const label = score <= 4 ? 'Low' : score <= 7 ? 'Okay' : 'Great';
+        tooltip.innerHTML = `<strong>${date}</strong><br>Mood: ${score}/10 — ${label}`;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top = (event.clientY - 10) + 'px';
+    }
+
+    function hideTooltip() {
+        document.getElementById('heatmap-tooltip').style.display = 'none';
+    }
+
+    async function loadAnalytics() {
+        const summary = await apiRequest('/api/analytics/summary/');
+        if (summary) {
+            document.getElementById('avg-mood').textContent = summary.avg_mood || '-';
+            document.getElementById('current-streak').textContent = summary.current_streak;
+            document.getElementById('longest-streak').textContent = summary.longest_streak;
+
+            const labels = summary.daily_chart.map(d => d.logged_at__date);
+            const scores = summary.daily_chart.map(d => d.avg_score.toFixed(1));
+
+            new Chart(document.getElementById('dailyChart'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Average Mood',
+                        data: scores,
+                        borderColor: '#a78bfa',
+                        backgroundColor: 'rgba(167,139,250,0.1)',
+                        borderWidth: 2.5,
+                        pointBackgroundColor: '#a78bfa',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0, max: 10,
+                            ticks: { color: '#6060a0', stepSize: 1 },
+                            grid: { color: '#2a2a4a' }
+                        },
+                        x: {
+                            ticks: { color: '#6060a0' },
+                            grid: { color: '#2a2a4a' }
+                        }
+                    },
+                    plugins: { legend: { labels: { color: '#a0a0c0' } } }
+                }
+            });
+        }
+
+        const heatmapData = await apiRequest('/api/analytics/heatmap/');
+        if (heatmapData) buildHeatmap(heatmapData);
+
+        const weekly = await apiRequest('/api/analytics/weekly/');
+        const weekDiv = document.getElementById('weekly-report');
+        if (weekly && weekly.length > 0) {
+            weekDiv.innerHTML = weekly.map(w => {
+                let trendClass = 'trend-nodata';
+                if (w.trend === 'improving') trendClass = 'trend-improving';
+                else if (w.trend === 'declining') trendClass = 'trend-declining';
+                else if (w.trend === 'stable') trendClass = 'trend-stable';
+                return `
+                    <div class="week-card">
+                        <div>
+                            <div style="font-size:14px;font-weight:600;color:#e0e0e0">${w.week}</div>
+                            <div class="week-label">${w.total_entries} entries • Top tag: ${w.most_used_tag || 'none'}</div>
+                        </div>
+                        <div style="text-align:right">
+                            <div class="week-avg">${w.avg_mood || '-'}</div>
+                            <span class="week-trend ${trendClass}">${w.trend}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    loadAnalytics();
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="auth-container">
+    <div class="card">
+        <h2>Welcome back 👋</h2>
+        <div id="alert"></div>
+        <label>Username</label>
+        <input type="text" id="username" placeholder="Enter your username">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Enter your password">
+        <button class="btn" style="width:100%" onclick="login()">Login</button>
+        <p>Don't have an account? <a href="/register/">Register here</a></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const response = await fetch('/api/users/login/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            localStorage.setItem('access_token', data.access);
+            localStorage.setItem('refresh_token', data.refresh);
+            window.location.href = '/dashboard/';
+        } else {
+            document.getElementById('alert').innerHTML =
+                '<div class="alert alert-error">Invalid username or password</div>';
+        }
+    }
+</script>
+{% endblock %}
